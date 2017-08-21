@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <declare-styleable name="SeatTableView">
+        <attr name="seat_sold" format="reference" />
+        <attr name="seat_available" format="reference" />
+    </declare-styleable>
+
+</resources>
