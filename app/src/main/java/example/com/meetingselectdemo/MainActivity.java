@@ -15,7 +15,7 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         seatTableView = (MeetingMapView) findViewById(R.id.seatView);
-        seatTableView.setRowAndColumn(9,14);
+        seatTableView.setRowAndColumn(20,8);
         seatTableView.setSeatChecker(new MeetingMapView.SeatChecker() {
 
             @Override

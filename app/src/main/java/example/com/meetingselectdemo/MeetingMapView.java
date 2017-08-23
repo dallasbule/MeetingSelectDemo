@@ -16,6 +16,7 @@ import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,8 +53,8 @@ public class MeetingMapView extends View {
     private int column;
     //会议室桌子的宽度
     private int tableWidth;
-    //会议室桌子的高度
-    private float tableHeight;
+    //座位图距离上方的距离
+    private float spcingHeight;
 
 
     //座位已经选中
@@ -84,7 +85,7 @@ public class MeetingMapView extends View {
     private SeatChecker seatChecker;
 
     //Y轴起始坐标
-    private int startY = getHeight() / 7;
+//    private int startY = getHeight() / 7;
 
 
     public MeetingMapView(Context context) {
@@ -127,10 +128,10 @@ public class MeetingMapView extends View {
         scaleY = defaultImgH / availableSeatBitmap.getHeight();
         //计算整个图的高
         totalSeatWidth = (int) (column * availableSeatBitmap.getWidth() * scaleX + (column - 1) * horizontalSpacing);
-        totalSeatHeight = (int) (rowNum * availableSeatBitmap.getHeight() * scaleY * (rowNum - 1) * vericalSpacing);
+        totalSeatHeight = (int) (rowNum * availableSeatBitmap.getHeight() * scaleY + (rowNum - 1) * vericalSpacing);
 
         //桌子的高度
-        tableHeight = dip2Px(getContext(), 30);
+        spcingHeight = dip2Px(getContext(), 60);
 
 //        matrix.postTranslate(horizontalSpacing, tableHeight + vericalSpacing * 3);
     }
@@ -150,6 +151,8 @@ public class MeetingMapView extends View {
     //离开的时候坐标
     private int endX;
     private int endY;
+    private float spacingHeight2 = spcingHeight;
+    private float spacingHeight3 = Math.abs(getHeight() - spcingHeight - totalSeatHeight);
 
     //对界面的操控，主要是平移
     public boolean onTouchEvent(MotionEvent event) {
@@ -170,45 +173,47 @@ public class MeetingMapView extends View {
                 int distanceY = Math.abs(y - downY);
                 int translateX = x - endX;
                 int translateY = y - endY;
-                if (getWidth()>totalSeatWidth) {
-                    if (Math.abs(getTranslateX()) < (getWidth() - totalSeatWidth) / 2) {
-                        if (distanceX > 10 || distanceY > 10) {
+                if (getHeight() < spcingHeight + totalSeatHeight) {
+                    if (spcingHeight < Math.abs(getHeight() - spcingHeight - totalSeatHeight)) {
+                        spacingHeight2 = Math.abs(getHeight() - spcingHeight - totalSeatHeight);
+                        spacingHeight3 = 0;
+                    }
+                } else {
+                    spacingHeight2 = spcingHeight;
+                    spacingHeight3 = Math.abs(getHeight() - spcingHeight - totalSeatHeight);
+                }
+                if (Math.abs(getTranslateX()) < Math.abs((getWidth() - totalSeatWidth) / 2)
+                        && getTranslateY() >= 0 - spacingHeight2
+                        && getTranslateY() <= spacingHeight3) {
+                    if (distanceX > 10 || distanceY > 10) {
+                        matrix.postTranslate(translateX, translateY);
+                        invalidate();
+                    }
+                } else {
+                    if (getTranslateX() < 0 && getTranslateY() < 0) {
+                        if ((distanceX > 10 || distanceY > 10) && translateX >= 0 && translateY >= 0) {
                             matrix.postTranslate(translateX, translateY);
                             invalidate();
                         }
-                    } else {
-                        if (getTranslateX() < 0) {
-                            if ((distanceX > 10 || distanceY > 10) && translateX > 0) {
-                                matrix.postTranslate(translateX, translateY);
-                                invalidate();
-                            }
-                        } else {
-                            if ((distanceX > 10 || distanceY > 10) && translateX < 0) {
-                                matrix.postTranslate(translateX, translateY);
-                                invalidate();
-                            }
-                        }
                     }
-                }else {
-                    if (Math.abs(getTranslateX()) < (totalSeatWidth -getWidth()) / 2) {
-                        if (distanceX > 10 || distanceY > 10) {
+                    if (getTranslateX() < 0 && getTranslateY() > 0) {
+                        if ((distanceX > 10 || distanceY > 10) && translateX >= 0 && translateY <= 0) {
                             matrix.postTranslate(translateX, translateY);
                             invalidate();
                         }
-                    } else {
-                        if (getTranslateX() < 0) {
-                            if ((distanceX > 10 || distanceY > 10) && translateX > 0) {
-                                matrix.postTranslate(translateX, translateY);
-                                invalidate();
-                            }
-                        } else {
-                            if ((distanceX > 10 || distanceY > 10) && translateX < 0) {
-                                matrix.postTranslate(translateX, translateY);
-                                invalidate();
-                            }
+                    }
+                    if (getTranslateX() > 0 && getTranslateY() < 0) {
+                        if ((distanceX > 10 || distanceY > 10) && translateX <= 0 && translateY >= 0) {
+                            matrix.postTranslate(translateX, translateY);
+                            invalidate();
                         }
                     }
-
+                    if (getTranslateX() > 0 && getTranslateY() > 0) {
+                        if ((distanceX > 10 || distanceY > 10) && translateX <= 0 && translateY <= 0) {
+                            matrix.postTranslate(translateX, translateY);
+                            invalidate();
+                        }
+                    }
                 }
                 break;
         }
@@ -217,6 +222,7 @@ public class MeetingMapView extends View {
 
         return true;
     }
+//        path.lineTo(centerX - tableWidth / 2, tableHeight + startY + getTranslateY());
 
 //    private void drawTable(Canvas canvas) {
 //        //绘制桌子的paint初始化
@@ -234,7 +240,6 @@ public class MeetingMapView extends View {
 //        Path path = new Path();
 //        path.moveTo(centerX, startY + getTranslateY());
 //        path.lineTo(centerX - tableWidth / 2, startY + getTranslateY());
-//        path.lineTo(centerX - tableWidth / 2, tableHeight + startY + getTranslateY());
 //        path.lineTo(centerX + tableWidth / 2, tableHeight + startY + getTranslateY());
 //        path.lineTo(centerX + tableWidth / 2, startY + getTranslateY());
 //
@@ -252,7 +257,7 @@ public class MeetingMapView extends View {
 
         for (int i = 0; i < rowNum; i++) {
             //this.scaleY是座位资源图片的初始化缩放比例
-            float top = i * availableSeatBitmap.getHeight() * this.scaleY + i * vericalSpacing + startY + tableHeight * 2 + translateY;
+            float top = i * availableSeatBitmap.getHeight() * this.scaleY + i * vericalSpacing + spcingHeight + translateY;
 
             float bottom = top + availableSeatBitmap.getHeight() * this.scaleY;
             //如果平移超过屏幕，则不继续绘制
@@ -422,12 +427,12 @@ public class MeetingMapView extends View {
                     /**获取屏幕每个座位的坐标范围
                      *
                      */
-                    int top = (int) (i * availableSeatBitmap.getHeight() * scaleY + i * vericalSpacing + startY + tableHeight * 2 + getTranslateY());
+                    int top = (int) (i * availableSeatBitmap.getHeight() * scaleY + i * vericalSpacing + spcingHeight + getTranslateY());
 
                     int bottom = (int) (top + availableSeatBitmap.getHeight() * scaleY);
 
 
-                    int left = (int) (j * availableSeatBitmap.getWidth() * scaleX + j * horizontalSpacing + getTranslateX()+(getWidth() - totalSeatWidth) / 2);
+                    int left = (int) (j * availableSeatBitmap.getWidth() * scaleX + j * horizontalSpacing + getTranslateX() + (getWidth() - totalSeatWidth) / 2);
                     int right = (int) (availableSeatBitmap.getWidth() * scaleX + left);
 
                     if (seatChecker != null && seatChecker.isValidSeat(i, j)) {
@@ -441,14 +446,13 @@ public class MeetingMapView extends View {
                                 }
                                 invalidate();
                             } else {
-                                showPeoplDialog(i, j);
+                                showPeopleDialog(i, j);
                             }
                             break;
                         }
                     }
                 }
             }
-
             return super.onSingleTapConfirmed(e);
         }
     });
@@ -456,7 +460,7 @@ public class MeetingMapView extends View {
     /**
      * 人员列表弹出框
      */
-    private void showPeoplDialog(final int rowNum, final int column) {
+    private void showPeopleDialog(final int rowNum, final int column) {
         new AlertDialog.Builder(getContext())
                 .setTitle("请选择人员")
                 .setSingleChoiceItems(new String[]{"惠磊", "惠子怡", "槽子仪", "曹磊"}, 0, new DialogInterface.OnClickListener() {
@@ -482,7 +486,9 @@ public class MeetingMapView extends View {
 
     /**
      * 平移防止越界
-     */
+     **/
     private void AutoAdjust() {
+
+
     }
 }

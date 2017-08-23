@@ -14,7 +14,6 @@
     <example.com.meetingselectdemo.MeetingMapView
         android:id="@+id/seatView"
         android:background="#ffffff"
-        android:layout_marginTop="20dp"
         android:gravity="center"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
