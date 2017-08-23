@@ -7,19 +7,18 @@ import android.content.res.TypedArray;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.StringTokenizer;
 
 /**
  * Created by Administrator on 2017/8/10.
@@ -83,6 +82,15 @@ public class MeetingMapView extends View {
     private int totalSeatWidth;
 
     private SeatChecker seatChecker;
+
+    //人员列表数据
+    private ArrayList<String> people;
+    //已选中的人员
+    private ArrayList<String> selectPeople = new ArrayList<>();
+    //存储选中的座位
+    ArrayList<Integer> selects = new ArrayList<>();
+    //
+    private int userId;
 
     //Y轴起始坐标
 //    private int startY = getHeight() / 7;
@@ -362,9 +370,6 @@ public class MeetingMapView extends View {
      */
 
 
-    //存储选中的座位
-    ArrayList<Integer> selects = new ArrayList<>();
-
     private int isHave(Integer seat) {
         //使用二分查找法查找并返回所在数组位置，判定是否已经被选中
         return Collections.binarySearch(selects, seat);
@@ -395,6 +400,7 @@ public class MeetingMapView extends View {
 
     private void remove(int index) {
         selects.remove(index);
+        selectPeople.remove(index);
     }
 
 
@@ -404,21 +410,62 @@ public class MeetingMapView extends View {
      * @param row
      * @param column
      */
-    private void addChooseSeat(int row, int column) {
+    private void addChooseSeat(int row, int column, int userId) {
         int id = getID(row, column);
         for (int i = 0; i < selects.size(); i++) {
             int item = selects.get(i);
             if (id < item) {
                 selects.add(i, id);
+                selectPeople.add(i, people.get(userId));
                 return;
             }
         }
         selects.add(id);
+        selectPeople.add(people.get(userId));
     }
 
     GestureDetector gestureDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
         @Override
+        public void onLongPress(MotionEvent e) {
+            int x = (int) e.getX();
+            int y = (int) e.getY();
+            String text="";
+
+            for (int i = 0; i < rowNum; i++) {
+                for (int j = 0; j < column; j++) {
+                    /**获取屏幕每个座位的坐标范围
+                     *
+                     */
+                    int top = (int) (i * availableSeatBitmap.getHeight() * scaleY + i * vericalSpacing + spcingHeight + getTranslateY());
+
+                    int bottom = (int) (top + availableSeatBitmap.getHeight() * scaleY);
+
+
+                    int left = (int) (j * availableSeatBitmap.getWidth() * scaleX + j * horizontalSpacing + getTranslateX() + (getWidth() - totalSeatWidth) / 2);
+                    int right = (int) (availableSeatBitmap.getWidth() * scaleX + left);
+
+                    if (seatChecker != null && seatChecker.isValidSeat(i, j)) {
+                        if (x >= left && x <= right && y >= top && y <= bottom) {
+                            int id = getID(i, j);
+                            int index = isHave(id);
+                            if (index >= 0) {
+                                text = selectPeople.get(index) + id;
+                            } else {
+                                text = "无人" ;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            if (text!="") {
+                Toast.makeText(getContext(), text, Toast.LENGTH_SHORT).show();
+            }
+        }
+
+        @Override
         public boolean onSingleTapConfirmed(MotionEvent e) {
+            ArrayList<String> noSeatPeople=people;
             int x = (int) e.getX();
             int y = (int) e.getY();
 
@@ -460,19 +507,20 @@ public class MeetingMapView extends View {
     /**
      * 人员列表弹出框
      */
+
     private void showPeopleDialog(final int rowNum, final int column) {
         new AlertDialog.Builder(getContext())
                 .setTitle("请选择人员")
-                .setSingleChoiceItems(new String[]{"惠磊", "惠子怡", "槽子仪", "曹磊"}, 0, new DialogInterface.OnClickListener() {
+                .setSingleChoiceItems(people.toArray(new String[people.size()]), 0, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
-
+                        userId = i;
                     }
                 })
                 .setPositiveButton("确定", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
-                        addChooseSeat(rowNum, column);
+                        addChooseSeat(rowNum, column, userId);
                         if (seatChecker != null) {
                             seatChecker.checked(rowNum, column);
                         }
@@ -482,6 +530,10 @@ public class MeetingMapView extends View {
                 })
                 .setNegativeButton("取消", null)
                 .show();
+    }
+
+    public void setData(String[] people) {
+        this.people = new ArrayList(Arrays.asList(people));
     }
 
     /**

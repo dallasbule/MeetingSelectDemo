@@ -3,6 +3,8 @@ package example.com.meetingselectdemo;
 import android.app.Activity;
 import android.os.Bundle;
 
+import example.com.meetingselectdemo.testdata.PeopleData;
+
 public class MainActivity extends Activity {
 
 
@@ -16,6 +18,7 @@ public class MainActivity extends Activity {
 
         seatTableView = (MeetingMapView) findViewById(R.id.seatView);
         seatTableView.setRowAndColumn(20,8);
+        seatTableView.setData(new PeopleData().people);
         seatTableView.setSeatChecker(new MeetingMapView.SeatChecker() {
 
             @Override
