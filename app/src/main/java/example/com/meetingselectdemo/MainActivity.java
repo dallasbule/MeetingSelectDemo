@@ -2,14 +2,23 @@ package example.com.meetingselectdemo;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.util.Log;
 
 import example.com.meetingselectdemo.testdata.PeopleData;
 
 public class MainActivity extends Activity {
 
 
-
     public MeetingMapView seatTableView;
+    private int[][] seat = {
+            {0, 0, 0, 1, 0, 0, 0},
+            {1, 0, 0, 0, 0, 0, 1},
+            {1, 0, 0, 0, 0, 0, 1},
+            {1, 0, 0, 0, 0, 0, 1},
+            {1, 0, 0, 0, 0, 0, 1},
+            {1, 0, 0, 0, 0, 0, 1},
+            {1, 0, 0, 0, 0, 0, 1},
+            {0, 0, 0, 1, 0, 0, 0}};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -17,16 +26,13 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         seatTableView = (MeetingMapView) findViewById(R.id.seatView);
-        seatTableView.setRowAndColumn(20,8);
+        seatTableView.setRowAndColumn(seat.length, seat[0].length);
         seatTableView.setData(new PeopleData().people);
         seatTableView.setSeatChecker(new MeetingMapView.SeatChecker() {
 
             @Override
             public boolean isValidSeat(int row, int column) {
-                if (row==2||row==1){
-                    return false;
-                }
-                if (row==0&&(column==0||column==1||column==8||column==9)){
+                if (seat[row][column]==0){
                     return false;
                 }
                 return true;
