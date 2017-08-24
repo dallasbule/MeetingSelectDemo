@@ -10,6 +10,7 @@ import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
@@ -18,6 +19,10 @@ import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 import java.util.StringTokenizer;
 
 /**
@@ -85,11 +90,12 @@ public class MeetingMapView extends View {
 
     //人员列表数据
     private ArrayList<String> people;
-    //已选中的人员
-    private ArrayList<String> selectPeople = new ArrayList<>();
+    //    //已选中的人员
+//    private ArrayList<String> selectPeople = new ArrayList<>();
     //存储选中的座位
-    ArrayList<Integer> selects = new ArrayList<>();
+//    ArrayList<Integer> selects = new ArrayList<>();
     //
+    Map<Integer, Integer> map = new HashMap<Integer, Integer>();
     private int userId;
 
     //Y轴起始坐标
@@ -370,10 +376,10 @@ public class MeetingMapView extends View {
      */
 
 
-    private int isHave(Integer seat) {
-        //使用二分查找法查找并返回所在数组位置，判定是否已经被选中
-        return Collections.binarySearch(selects, seat);
-    }
+//    private int isHave(Integer seat) {
+//        //使用二分查找法查找并返回所在数组位置，判定是否已经被选中
+//        return Collections.binarySearch(selects, seat);
+//    }
 
     //为每一个位置分配一个唯一的id用作数组下坐标
     private int getID(int row, int column) {
@@ -383,7 +389,7 @@ public class MeetingMapView extends View {
     //获取是否选取，即该座位是否被选取
     private int getSeatType(int row, int column) {
 
-        if (isHave(getID(row, column)) >= 0) {
+        if (map.containsKey(getID(row, column))) {
             return SEAT_TYPE_SELECTED;
         }
         if (seatChecker != null) {
@@ -399,8 +405,7 @@ public class MeetingMapView extends View {
     }
 
     private void remove(int index) {
-        selects.remove(index);
-        selectPeople.remove(index);
+        map.remove(index);
     }
 
 
@@ -411,17 +416,19 @@ public class MeetingMapView extends View {
      * @param column
      */
     private void addChooseSeat(int row, int column, int userId) {
-        int id = getID(row, column);
-        for (int i = 0; i < selects.size(); i++) {
-            int item = selects.get(i);
-            if (id < item) {
-                selects.add(i, id);
-                selectPeople.add(i, people.get(userId));
-                return;
+        if (map.containsValue(userId)) {
+            Set set = map.entrySet();//新建一个不可重复的集合
+            Iterator it = set.iterator();//遍历的类
+            while (it.hasNext()) {
+                Map.Entry entry = (Map.Entry) it.next();//找到所有key-value对集合
+                if (entry.getValue().equals(userId)) {
+                    map.remove(entry.getKey());//取得key值
+                    break;
+                }
             }
         }
-        selects.add(id);
-        selectPeople.add(people.get(userId));
+        int id = getID(row, column);
+        map.put(id, userId);
     }
 
     GestureDetector gestureDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
@@ -447,9 +454,8 @@ public class MeetingMapView extends View {
                     if (seatChecker != null && seatChecker.isValidSeat(i, j)) {
                         if (x >= left && x <= right && y >= top && y <= bottom) {
                             int id = getID(i, j);
-                            int index = isHave(id);
-                            if (index >= 0) {
-                                text = selectPeople.get(index) + id;
+                            if (map.containsKey(id)) {
+                                text = people.get(map.get(id));
                             } else {
                                 text = "无人" ;
                             }
@@ -465,7 +471,6 @@ public class MeetingMapView extends View {
 
         @Override
         public boolean onSingleTapConfirmed(MotionEvent e) {
-            ArrayList<String> noSeatPeople=people;
             int x = (int) e.getX();
             int y = (int) e.getY();
 
@@ -485,9 +490,8 @@ public class MeetingMapView extends View {
                     if (seatChecker != null && seatChecker.isValidSeat(i, j)) {
                         if (x >= left && x <= right && y >= top && y <= bottom) {
                             int id = getID(i, j);
-                            int index = isHave(id);
-                            if (index >= 0) {
-                                remove(index);
+                            if (map.containsKey(id)) {
+                                remove(id);
                                 if (seatChecker != null) {
                                     seatChecker.unCheck(i, j);
                                 }
@@ -509,6 +513,7 @@ public class MeetingMapView extends View {
      */
 
     private void showPeopleDialog(final int rowNum, final int column) {
+        userId=0;
         new AlertDialog.Builder(getContext())
                 .setTitle("请选择人员")
                 .setSingleChoiceItems(people.toArray(new String[people.size()]), 0, new DialogInterface.OnClickListener() {
