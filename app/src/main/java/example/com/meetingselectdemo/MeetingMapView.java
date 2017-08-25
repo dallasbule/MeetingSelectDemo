@@ -1,5 +1,6 @@
 package example.com.meetingselectdemo;
 
+import android.animation.ValueAnimator;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -12,7 +13,9 @@ import android.graphics.Paint;
 import android.util.AttributeSet;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -54,7 +57,8 @@ public class MeetingMapView extends View {
     private int column;
     //会议室桌子的宽度
     private int tableWidth;
-    //座位图距离上方的距离
+    //座位图距离上方的距离set
+    //座位图距离上方的距离set
     private float spcingHeight;
 
 
@@ -95,6 +99,22 @@ public class MeetingMapView extends View {
     Map<Integer, Integer> map = new HashMap<Integer, Integer>();
     private int userId;
 
+    //缩放比例
+    float scaleX = 1;
+    float scaleY = 1;
+
+    /**
+     * 标识是否正在缩放
+     */
+    boolean isScaling;
+    //此处用来表示当前缩放的时候所触碰点的坐标
+    float currentScaleX, currentScaleY;
+
+    /**
+     * 是否是第一次缩放
+     */
+    boolean firstScale = true;
+
     //Y轴起始坐标
 //    private int startY = getHeight() / 7;
 
@@ -122,17 +142,12 @@ public class MeetingMapView extends View {
 
     }
 
-    //缩放比例
-    float scaleX;
-    float scaleY;
-
     private void init() {
         availableSeatBitmap = BitmapFactory.decodeResource(getResources(), availableSeatId);
         selectSeatBitmap = BitmapFactory.decodeResource(getResources(), selectSeatId);
 
         horizontalSpacing = dip2Px(getContext(), 10);
         vericalSpacing = dip2Px(getContext(), 10);
-        tableWidth = dip2Px(getContext(), 80);
 
         //缩放比列，主要用于资源图片的初始化大小，谨防图片过大导致
         scaleX = defaultImgW / availableSeatBitmap.getWidth();
@@ -171,6 +186,7 @@ public class MeetingMapView extends View {
         int x = (int) event.getX();
         super.onTouchEvent(event);
         gestureDetector.onTouchEvent(event);
+        scaleGestureDetector.onTouchEvent(event);
 
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
@@ -184,16 +200,16 @@ public class MeetingMapView extends View {
                 int distanceY = Math.abs(y - downY);
                 int translateX = x - endX;
                 int translateY = y - endY;
-                if (getHeight() < spcingHeight + totalSeatHeight) {
-                    if (spcingHeight < Math.abs(getHeight() - spcingHeight - totalSeatHeight)) {
-                        spacingHeight2 = Math.abs(getHeight() - spcingHeight - totalSeatHeight);
+                if (getHeight() < spcingHeight + totalSeatHeight*getMatrixScaleY()) {
+                    if (spcingHeight < Math.abs(getHeight() - spcingHeight - totalSeatHeight*getMatrixScaleY())) {
+                        spacingHeight2 = Math.abs(getHeight() - spcingHeight - totalSeatHeight*getMatrixScaleY());
                         spacingHeight3 = 0;
                     }
                 } else {
                     spacingHeight2 = spcingHeight;
-                    spacingHeight3 = Math.abs(getHeight() - spcingHeight - totalSeatHeight);
+                    spacingHeight3 = Math.abs(getHeight() - spcingHeight - totalSeatHeight*getMatrixScaleY());
                 }
-                if (Math.abs(getTranslateX()) < Math.abs((getWidth() - totalSeatWidth) / 2)
+                if (Math.abs(getTranslateX()) < Math.abs((getWidth() - totalSeatWidth*getMatrixScaleX()) / 2)
                         && getTranslateY() >= 0 - spacingHeight2
                         && getTranslateY() <= spacingHeight3) {
                     if (distanceX > 10 || distanceY > 10) {
@@ -261,6 +277,8 @@ public class MeetingMapView extends View {
     //绘制座位图
 
     private void drawSeat(Canvas canvas) {
+        //获取缩放的比列
+        float zoom = getMatrixScaleX();
         //获取x轴平移距离
         float translateX = getTranslateX();
         //获取Y轴平移距离
@@ -268,16 +286,16 @@ public class MeetingMapView extends View {
 
         for (int i = 0; i < rowNum; i++) {
             //this.scaleY是座位资源图片的初始化缩放比例
-            float top = i * availableSeatBitmap.getHeight() * this.scaleY + i * vericalSpacing + spcingHeight + translateY;
+            float top = i * availableSeatBitmap.getHeight() * this.scaleY * zoom + i * vericalSpacing * zoom + spcingHeight + translateY;
 
-            float bottom = top + availableSeatBitmap.getHeight() * this.scaleY;
+            float bottom = top + availableSeatBitmap.getHeight() * this.scaleY * zoom;
             //如果平移超过屏幕，则不继续绘制
             if (bottom < 0 || top > getHeight()) {
                 continue;
             }
             for (int j = 0; j < column; j++) {
-                float left = j * availableSeatBitmap.getWidth() * this.scaleX + j * horizontalSpacing + translateX + (getWidth() - totalSeatWidth) / 2;
-                float right = availableSeatBitmap.getWidth() * this.scaleX + left;
+                float left = j * availableSeatBitmap.getWidth() * this.scaleX * zoom + j * horizontalSpacing * zoom + translateX + (getWidth() - totalSeatWidth*getMatrixScaleX()) / 2;
+                float right = availableSeatBitmap.getWidth() * this.scaleX * zoom + left;
                 if (right < 0 || left > getWidth()) {
                     continue;
                 }
@@ -286,7 +304,7 @@ public class MeetingMapView extends View {
                 //平移获取新图
                 seatMatrix.setTranslate(left, top);
                 //按照比列缩放初始化每个座位图
-                seatMatrix.postScale(this.scaleX, this.scaleY, left, top);
+                seatMatrix.postScale(this.scaleX*zoom, this.scaleY*zoom, left, top);
                 //根据获取的状态来显示
                 switch (seatType) {
                     case CHAIR:
@@ -433,20 +451,21 @@ public class MeetingMapView extends View {
         public void onLongPress(MotionEvent e) {
             int x = (int) e.getX();
             int y = (int) e.getY();
-            String text="";
+            String text = "";
 
             for (int i = 0; i < rowNum; i++) {
                 for (int j = 0; j < column; j++) {
                     /**获取屏幕每个座位的坐标范围
                      *
                      */
-                    int top = (int) (i * availableSeatBitmap.getHeight() * scaleY + i * vericalSpacing + spcingHeight + getTranslateY());
+                    int top = (int) (i * availableSeatBitmap.getHeight() * scaleY * getMatrixScaleY()
+                            + i * vericalSpacing * getMatrixScaleY() + spcingHeight + getTranslateY());
 
-                    int bottom = (int) (top + availableSeatBitmap.getHeight() * scaleY);
+                    int bottom = (int) (top + availableSeatBitmap.getHeight() * scaleY * getMatrixScaleY());
 
 
-                    int left = (int) (j * availableSeatBitmap.getWidth() * scaleX + j * horizontalSpacing + getTranslateX() + (getWidth() - totalSeatWidth) / 2);
-                    int right = (int) (availableSeatBitmap.getWidth() * scaleX + left);
+                    int left = (int) (j * availableSeatBitmap.getWidth() * scaleX * getMatrixScaleX() + j * horizontalSpacing * getMatrixScaleX() + getTranslateX() + (getWidth() - totalSeatWidth*getMatrixScaleX()) / 2);
+                    int right = (int) (availableSeatBitmap.getWidth() * scaleX * getMatrixScaleX() + left);
 
                     if (seatChecker != null && seatChecker.isValidSeat(i, j)) {
                         if (x >= left && x <= right && y >= top && y <= bottom) {
@@ -454,14 +473,14 @@ public class MeetingMapView extends View {
                             if (map.containsKey(id)) {
                                 text = people.get(map.get(id));
                             } else {
-                                text = "无人" ;
+                                text = "无人";
                             }
                             break;
                         }
                     }
                 }
             }
-            if (text!="") {
+            if (text != "") {
                 Toast.makeText(getContext(), text, Toast.LENGTH_SHORT).show();
             }
         }
@@ -476,13 +495,14 @@ public class MeetingMapView extends View {
                     /**获取屏幕每个座位的坐标范围
                      *
                      */
-                    int top = (int) (i * availableSeatBitmap.getHeight() * scaleY + i * vericalSpacing + spcingHeight + getTranslateY());
+                    int top = (int) (i * availableSeatBitmap.getHeight() * scaleY * getMatrixScaleY()
+                            + i * vericalSpacing * getMatrixScaleY() + spcingHeight + getTranslateY());
 
-                    int bottom = (int) (top + availableSeatBitmap.getHeight() * scaleY);
+                    int bottom = (int) (top + availableSeatBitmap.getHeight() * scaleY * getMatrixScaleY());
 
 
-                    int left = (int) (j * availableSeatBitmap.getWidth() * scaleX + j * horizontalSpacing + getTranslateX() + (getWidth() - totalSeatWidth) / 2);
-                    int right = (int) (availableSeatBitmap.getWidth() * scaleX + left);
+                    int left = (int) (j * availableSeatBitmap.getWidth() * scaleX * getMatrixScaleX() + j * horizontalSpacing * getMatrixScaleX() + getTranslateX() + (getWidth() - totalSeatWidth*getMatrixScaleX()) / 2);
+                    int right = (int) (availableSeatBitmap.getWidth() * scaleX * getMatrixScaleX() + left);
 
                     if (seatChecker != null && seatChecker.isValidSeat(i, j)) {
                         if (x >= left && x <= right && y >= top && y <= bottom) {
@@ -495,6 +515,13 @@ public class MeetingMapView extends View {
                                 invalidate();
                             } else {
                                 showPeopleDialog(i, j);
+                            }
+                            float currentScale = getMatrixScaleY();
+                            if (currentScaleY < 1.7) {
+                                currentScaleX = x;
+                                currentScaleY = y;
+                                zoomAnimate(currentScale, 1.9f);
+                                invalidate();
                             }
                             break;
                         }
@@ -510,7 +537,7 @@ public class MeetingMapView extends View {
      */
 
     private void showPeopleDialog(final int rowNum, final int column) {
-        userId=0;
+        userId = 0;
         new AlertDialog.Builder(getContext())
                 .setTitle("请选择人员")
                 .setSingleChoiceItems(people.toArray(new String[people.size()]), 0, new DialogInterface.OnClickListener() {
@@ -538,11 +565,83 @@ public class MeetingMapView extends View {
         this.people = new ArrayList(Arrays.asList(people));
     }
 
-    /**
-     * 平移防止越界
-     **/
-    private void AutoAdjust() {
-
-
+    private float getMatrixScaleY() {
+        matrix.getValues(m);
+        return m[4];
     }
+
+    private float getMatrixScaleX() {
+        matrix.getValues(m);
+        return m[Matrix.MSCALE_X];
+    }
+
+    class ScaleAnimation implements ValueAnimator.AnimatorUpdateListener {
+
+        @Override
+        public void onAnimationUpdate(ValueAnimator valueAnimator) {
+            float zoom = (float) valueAnimator.getAnimatedValue();
+            setZoom(zoom);
+        }
+    }
+
+    /**
+     * 此方法用于缩放时候通过获取的当前缩放比列来设置动画
+     */
+    private void setZoom(float zoom) {
+        float z = zoom / getMatrixScaleX();
+        matrix.postScale(z, z, currentScaleX, currentScaleY);
+        invalidate();
+    }
+
+    /**
+     * 缩放的动画效果
+     * @param cur
+     * @param tar
+     */
+    private void zoomAnimate(float cur, float tar) {
+        ValueAnimator valueAnimator = ValueAnimator.ofFloat(cur, tar);
+        valueAnimator.setInterpolator(new DecelerateInterpolator());
+        ScaleAnimation zoomAnim = new ScaleAnimation();
+        valueAnimator.addUpdateListener(zoomAnim);
+        valueAnimator.setDuration(400);
+        valueAnimator.start();
+    }
+
+    /**
+     * 缩放手势的监听
+     */
+
+    ScaleGestureDetector scaleGestureDetector = new ScaleGestureDetector(getContext(), new ScaleGestureDetector.OnScaleGestureListener() {
+        @Override
+        public boolean onScale(ScaleGestureDetector detector) {
+            isScaling = true;
+            float scaleFactor = detector.getScaleFactor();
+            if (getMatrixScaleY() * scaleFactor > 3) {
+                scaleFactor = 3 / getMatrixScaleY();
+            }
+            if (firstScale) {
+                currentScaleX = detector.getCurrentSpanX();
+                currentScaleY = detector.getCurrentSpanY();
+                firstScale = false;
+            }
+
+            if (getMatrixScaleY() * scaleFactor < 0.5) {
+                scaleFactor = 0.5f / getMatrixScaleY();
+            }
+            matrix.postScale(scaleFactor, scaleFactor, currentScaleX, currentScaleY);
+            invalidate();
+            return true;
+        }
+
+        @Override
+        public boolean onScaleBegin(ScaleGestureDetector detector) {
+            return true;
+        }
+
+        @Override
+        public void onScaleEnd(ScaleGestureDetector detector) {
+            isScaling = false;
+            firstScale = true;
+        }
+    });
 }

@@ -2,14 +2,15 @@ package example.com.meetingselectdemo;
 
 import android.app.Activity;
 import android.os.Bundle;
-import android.util.Log;
+import android.widget.Button;
 
 import example.com.meetingselectdemo.testdata.PeopleData;
 
 public class MainActivity extends Activity {
 
 
-    public MeetingMapView seatTableView;
+    private MeetingMapView seatTableView;
+    private Button seatButton;
     private int[][] seat = {
             {0, 0, 0, 1, 0, 0, 0},
             {1, 0, 0, 0, 0, 0, 1},
