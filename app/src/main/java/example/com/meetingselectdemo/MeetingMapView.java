@@ -493,7 +493,6 @@ public class MeetingMapView extends View {
                             int id = getID(i, j);
                             if (seat.get(id) == 1) {
                                 for (int m = 0; m < people.size(); m++) {
-                                    Log.e("********",people.get(m).getId()+"");
                                     if (getID(i, j) == people.get(m).getId()) {
                                         text = people.get(m).getUserName();
                                         break;
@@ -507,7 +506,9 @@ public class MeetingMapView extends View {
                     }
                 }
             }
-            Toast.makeText(getContext(), text, Toast.LENGTH_SHORT).show();
+            if (text!="") {
+                Toast.makeText(getContext(), text, Toast.LENGTH_SHORT).show();
+            }
         }
 
         @Override
@@ -589,7 +590,6 @@ public class MeetingMapView extends View {
             public void onItemClick(AdapterView<?> arg0, View arg1, int arg2,
                                     long arg3) {
                 // 改变CheckBox的状态
-                Log.e("@@@@@@@@@@@@",arg2+"");
                 addChooseSeat(rowNum, column, people.get(arg2));
                 if (seatChecker != null) {
                     seatChecker.checked(rowNum, column);
@@ -637,9 +637,6 @@ public class MeetingMapView extends View {
             selectbean.setSetSeat(false);
             selectbean.setUserId(-1);
             this.people.add(selectbean);
-        }
-        for (int i = 0; i < people.length; i++) {
-            Log.e("*(****", this.people.get(i).getUserName());
         }
     }
 
