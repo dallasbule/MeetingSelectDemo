@@ -11,19 +11,20 @@ import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.GestureDetector;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.animation.DecelerateInterpolator;
+import android.widget.AdapterView;
+import android.widget.ListView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Created by Administrator on 2017/8/10.
@@ -90,13 +91,16 @@ public class MeetingMapView extends View {
     private SeatChecker seatChecker;
 
     //人员列表数据
-    private ArrayList<String> people;
+    private ArrayList<SeatBean> people = new ArrayList<>();
+    //人员列表数据
+    private ArrayList<Integer> seat = new ArrayList<>();
+    //
     //    //已选中的人员
 //    private ArrayList<String> selectPeople = new ArrayList<>();
     //存储选中的座位
 //    ArrayList<Integer> selects = new ArrayList<>();
     //
-    Map<Integer, Integer> map = new HashMap<Integer, Integer>();
+    Map<Integer, SeatBean> peopleMap = new HashMap<Integer, SeatBean>();
     private int userId;
 
     //缩放比例
@@ -114,6 +118,14 @@ public class MeetingMapView extends View {
      * 是否是第一次缩放
      */
     boolean firstScale = true;
+
+    /**
+     * 弹出框的列表
+     */
+    private ListView lv;
+
+    //列表的adapter
+    private MeetingParterAdapter mAdapter;
 
     //Y轴起始坐标
 //    private int startY = getHeight() / 7;
@@ -200,16 +212,16 @@ public class MeetingMapView extends View {
                 int distanceY = Math.abs(y - downY);
                 int translateX = x - endX;
                 int translateY = y - endY;
-                if (getHeight() < spcingHeight + totalSeatHeight*getMatrixScaleY()) {
-                    if (spcingHeight < Math.abs(getHeight() - spcingHeight - totalSeatHeight*getMatrixScaleY())) {
-                        spacingHeight2 = Math.abs(getHeight() - spcingHeight - totalSeatHeight*getMatrixScaleY());
+                if (getHeight() < spcingHeight + totalSeatHeight * getMatrixScaleY()) {
+                    if (spcingHeight < Math.abs(getHeight() - spcingHeight - totalSeatHeight * getMatrixScaleY())) {
+                        spacingHeight2 = Math.abs(getHeight() - spcingHeight - totalSeatHeight * getMatrixScaleY());
                         spacingHeight3 = 0;
                     }
                 } else {
                     spacingHeight2 = spcingHeight;
-                    spacingHeight3 = Math.abs(getHeight() - spcingHeight - totalSeatHeight*getMatrixScaleY());
+                    spacingHeight3 = Math.abs(getHeight() - spcingHeight - totalSeatHeight * getMatrixScaleY());
                 }
-                if (Math.abs(getTranslateX()) < Math.abs((getWidth() - totalSeatWidth*getMatrixScaleX()) / 2)
+                if (Math.abs(getTranslateX()) < Math.abs((getWidth() - totalSeatWidth * getMatrixScaleX()) / 2)
                         && getTranslateY() >= 0 - spacingHeight2
                         && getTranslateY() <= spacingHeight3) {
                     if (distanceX > 10 || distanceY > 10) {
@@ -294,7 +306,7 @@ public class MeetingMapView extends View {
                 continue;
             }
             for (int j = 0; j < column; j++) {
-                float left = j * availableSeatBitmap.getWidth() * this.scaleX * zoom + j * horizontalSpacing * zoom + translateX + (getWidth() - totalSeatWidth*getMatrixScaleX()) / 2;
+                float left = j * availableSeatBitmap.getWidth() * this.scaleX * zoom + j * horizontalSpacing * zoom + translateX + (getWidth() - totalSeatWidth * getMatrixScaleX()) / 2;
                 float right = availableSeatBitmap.getWidth() * this.scaleX * zoom + left;
                 if (right < 0 || left > getWidth()) {
                     continue;
@@ -304,7 +316,7 @@ public class MeetingMapView extends View {
                 //平移获取新图
                 seatMatrix.setTranslate(left, top);
                 //按照比列缩放初始化每个座位图
-                seatMatrix.postScale(this.scaleX*zoom, this.scaleY*zoom, left, top);
+                seatMatrix.postScale(this.scaleX * zoom, this.scaleY * zoom, left, top);
                 //根据获取的状态来显示
                 switch (seatType) {
                     case CHAIR:
@@ -377,6 +389,13 @@ public class MeetingMapView extends View {
     public void setRowAndColumn(int rowNum, int column) {
         this.rowNum = rowNum;
         this.column = column;
+
+        for (int i = 0; i < rowNum; i++) {
+            for (int j = 0; j < column; j++) {
+                seat.add(0);
+            }
+        }
+
         init();
         invalidate();
     }
@@ -398,13 +417,13 @@ public class MeetingMapView extends View {
 
     //为每一个位置分配一个唯一的id用作数组下坐标
     private int getID(int row, int column) {
-        return row * this.column + (column + 1);
+        return row * this.column + column;
     }
 
     //获取是否选取，即该座位是否被选取
     private int getSeatType(int row, int column) {
 
-        if (map.containsKey(getID(row, column))) {
+        if (seat.get(getID(row, column)) == 1) {
             return SEAT_TYPE_SELECTED;
         }
         if (seatChecker != null) {
@@ -419,8 +438,9 @@ public class MeetingMapView extends View {
         return SEAT_TYPE_AVAILABLE;
     }
 
-    private void remove(int index) {
-        map.remove(index);
+    private void remove(int row, int column) {
+        int id = getID(row, column);
+        seat.set(id, 0);
     }
 
 
@@ -430,20 +450,20 @@ public class MeetingMapView extends View {
      * @param row
      * @param column
      */
-    private void addChooseSeat(int row, int column, int userId) {
-        if (map.containsValue(userId)) {
-            Set set = map.entrySet();//新建一个不可重复的集合
-            Iterator it = set.iterator();//遍历的类
-            while (it.hasNext()) {
-                Map.Entry entry = (Map.Entry) it.next();//找到所有key-value对集合
-                if (entry.getValue().equals(userId)) {
-                    map.remove(entry.getKey());//取得key值
-                    break;
-                }
-            }
-        }
+    private void addChooseSeat(int row, int column, SeatBean people) {
         int id = getID(row, column);
-        map.put(id, userId);
+        if (people.isSetSeat() == true) {
+            remove(people.getRow(), people.getColumn());
+            people.setColumn(column);
+            people.setId(id);
+            people.setRow(row);
+        }else {
+            people.setSetSeat(true);
+            people.setColumn(column);
+            people.setRow(row);
+            people.setId(id);
+        }
+        seat.set(id, 1);
     }
 
     GestureDetector gestureDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
@@ -464,14 +484,21 @@ public class MeetingMapView extends View {
                     int bottom = (int) (top + availableSeatBitmap.getHeight() * scaleY * getMatrixScaleY());
 
 
-                    int left = (int) (j * availableSeatBitmap.getWidth() * scaleX * getMatrixScaleX() + j * horizontalSpacing * getMatrixScaleX() + getTranslateX() + (getWidth() - totalSeatWidth*getMatrixScaleX()) / 2);
+                    int left = (int) (j * availableSeatBitmap.getWidth() * scaleX * getMatrixScaleX()
+                            + j * horizontalSpacing * getMatrixScaleX() + getTranslateX() + (getWidth() - totalSeatWidth * getMatrixScaleX()) / 2);
                     int right = (int) (availableSeatBitmap.getWidth() * scaleX * getMatrixScaleX() + left);
 
                     if (seatChecker != null && seatChecker.isValidSeat(i, j)) {
                         if (x >= left && x <= right && y >= top && y <= bottom) {
                             int id = getID(i, j);
-                            if (map.containsKey(id)) {
-                                text = people.get(map.get(id));
+                            if (seat.get(id) == 1) {
+                                for (int m = 0; m < people.size(); m++) {
+                                    Log.e("********",people.get(m).getId()+"");
+                                    if (getID(i, j) == people.get(m).getId()) {
+                                        text = people.get(m).getUserName();
+                                        break;
+                                    }
+                                }
                             } else {
                                 text = "无人";
                             }
@@ -480,9 +507,7 @@ public class MeetingMapView extends View {
                     }
                 }
             }
-            if (text != "") {
-                Toast.makeText(getContext(), text, Toast.LENGTH_SHORT).show();
-            }
+            Toast.makeText(getContext(), text, Toast.LENGTH_SHORT).show();
         }
 
         @Override
@@ -501,14 +526,19 @@ public class MeetingMapView extends View {
                     int bottom = (int) (top + availableSeatBitmap.getHeight() * scaleY * getMatrixScaleY());
 
 
-                    int left = (int) (j * availableSeatBitmap.getWidth() * scaleX * getMatrixScaleX() + j * horizontalSpacing * getMatrixScaleX() + getTranslateX() + (getWidth() - totalSeatWidth*getMatrixScaleX()) / 2);
+                    int left = (int) (j * availableSeatBitmap.getWidth() * scaleX * getMatrixScaleX() + j * horizontalSpacing * getMatrixScaleX() + getTranslateX() + (getWidth() - totalSeatWidth * getMatrixScaleX()) / 2);
                     int right = (int) (availableSeatBitmap.getWidth() * scaleX * getMatrixScaleX() + left);
 
                     if (seatChecker != null && seatChecker.isValidSeat(i, j)) {
                         if (x >= left && x <= right && y >= top && y <= bottom) {
-                            int id = getID(i, j);
-                            if (map.containsKey(id)) {
-                                remove(id);
+
+                            if (seat.get(getID(i, j)) == 1) {
+                                for (int m = 0; m < people.size(); m++) {
+                                    if (getID(i, j) == people.get(m).getId()) {
+                                        people.get(m).setSetSeat(false);
+                                    }
+                                }
+                                remove(i, j);
                                 if (seatChecker != null) {
                                     seatChecker.unCheck(i, j);
                                 }
@@ -537,32 +567,80 @@ public class MeetingMapView extends View {
      */
 
     private void showPeopleDialog(final int rowNum, final int column) {
-        userId = 0;
-        new AlertDialog.Builder(getContext())
-                .setTitle("请选择人员")
-                .setSingleChoiceItems(people.toArray(new String[people.size()]), 0, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialogInterface, int i) {
-                        userId = i;
+        View settingView = LayoutInflater.from(getContext()).inflate(R.layout.listview, null);
+        lv = (ListView) settingView.findViewById(R.id.lv);
+        // 实例化自定义的MyAdapter
+        mAdapter = new MeetingParterAdapter(people, this.getContext());
+        lv.setAdapter(mAdapter);
+        final AlertDialog dialog = new AlertDialog.Builder(this.getContext(), AlertDialog.THEME_HOLO_LIGHT)
+                .setTitle("参会人员")
+                .setNegativeButton("取消", new DialogInterface.OnClickListener() {
+
+                    public void onClick(DialogInterface dialog, int which) {
+                        // TODO Auto-generated method stub
+                        dialog.dismiss();
+
                     }
-                })
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialogInterface, int i) {
-                        addChooseSeat(rowNum, column, userId);
-                        if (seatChecker != null) {
-                            seatChecker.checked(rowNum, column);
-                        }
-                        invalidate();
-                        dialogInterface.dismiss();
-                    }
-                })
-                .setNegativeButton("取消", null)
-                .show();
+                }).create();
+        dialog.setView(settingView, 0, 0, 0, 0);
+        dialog.show();
+        lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> arg0, View arg1, int arg2,
+                                    long arg3) {
+                // 改变CheckBox的状态
+                Log.e("@@@@@@@@@@@@",arg2+"");
+                addChooseSeat(rowNum, column, people.get(arg2));
+                if (seatChecker != null) {
+                    seatChecker.checked(rowNum, column);
+                }
+                mAdapter.notifyDataSetChanged();
+                invalidate();
+                dialog.dismiss();
+            }
+
+        });
+//        WindowManager.LayoutParams params = dialog.getWindow().getAttributes();
+//        WindowManager m = (WindowManager) getContext()
+//                .getSystemService(Context.WINDOW_SERVICE);
+//        Display d = m.getDefaultDisplay();
+//        params.height = (int) (d.getHeight() * 0.7);
+//        params.width = d.getWidth();
+//        dialog.getWindow().setAttributes(params);
+//        new AlertDialog.Builder(getContext())
+//                .setTitle("请选择人员")
+//                .setSingleChoiceItems(people.toArray(new String[people.size()]), 0, new DialogInterface.OnClickListener() {
+//                    @Override
+//                    public void onClick(DialogInterface dialogInterface, int i) {
+//                        userId = i;
+//                    }
+//                })
+//                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+//                    @Override
+//                    public void onClick(DialogInterface dialogInterface, int i) {
+//                        addChooseSeat(rowNum, column, userId);
+//                        if (seatChecker != null) {
+//                            seatChecker.checked(rowNum, column);
+//                        }
+//                        invalidate();
+//                        dialogInterface.dismiss();
+//                    }
+//                })
+//                .setNegativeButton("取消", null)
+//                .show();
     }
 
     public void setData(String[] people) {
-        this.people = new ArrayList(Arrays.asList(people));
+        for (int i = 0; i < people.length; i++) {
+            SeatBean selectbean = new SeatBean();
+            selectbean.setUserName(people[i]);
+            selectbean.setSetSeat(false);
+            selectbean.setUserId(-1);
+            this.people.add(selectbean);
+        }
+        for (int i = 0; i < people.length; i++) {
+            Log.e("*(****", this.people.get(i).getUserName());
+        }
     }
 
     private float getMatrixScaleY() {
@@ -595,6 +673,7 @@ public class MeetingMapView extends View {
 
     /**
      * 缩放的动画效果
+     *
      * @param cur
      * @param tar
      */
