@@ -1,5 +1,6 @@
 package example.com.meetingselectdemo;
 
+import android.animation.TypeEvaluator;
 import android.animation.ValueAnimator;
 import android.app.AlertDialog;
 import android.content.Context;
@@ -10,13 +11,16 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Point;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.Display;
 import android.view.GestureDetector;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+import android.view.WindowManager;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.AdapterView;
 import android.widget.ListView;
@@ -189,8 +193,6 @@ public class MeetingMapView extends View {
     //离开的时候坐标
     private int endX;
     private int endY;
-    private float spacingHeight2 = spcingHeight;
-    private float spacingHeight3 = Math.abs(getHeight() - spcingHeight - totalSeatHeight);
 
     //对界面的操控，主要是平移
     public boolean onTouchEvent(MotionEvent event) {
@@ -210,50 +212,21 @@ public class MeetingMapView extends View {
             case MotionEvent.ACTION_MOVE:
                 int distanceX = Math.abs(x - downX);
                 int distanceY = Math.abs(y - downY);
-                int translateX = x - endX;
-                int translateY = y - endY;
-                if (getHeight() < spcingHeight + totalSeatHeight * getMatrixScaleY()) {
-                    if (spcingHeight < Math.abs(getHeight() - spcingHeight - totalSeatHeight * getMatrixScaleY())) {
-                        spacingHeight2 = Math.abs(getHeight() - spcingHeight - totalSeatHeight * getMatrixScaleY());
-                        spacingHeight3 = 0;
-                    }
-                } else {
-                    spacingHeight2 = spcingHeight;
-                    spacingHeight3 = Math.abs(getHeight() - spcingHeight - totalSeatHeight * getMatrixScaleY());
+                if ((distanceX > 10 || distanceY > 10)) {
+                    int translateX = x - endX;
+                    int translateY = y - endY;
+                    matrix.postTranslate(translateX, translateY);
+                    invalidate();
                 }
-                if (Math.abs(getTranslateX()) < Math.abs((getWidth() - totalSeatWidth * getMatrixScaleX()) / 2)
-                        && getTranslateY() >= 0 - spacingHeight2
-                        && getTranslateY() <= spacingHeight3) {
-                    if (distanceX > 10 || distanceY > 10) {
-                        matrix.postTranslate(translateX, translateY);
-                        invalidate();
-                    }
-                } else {
-                    if (getTranslateX() < 0 && getTranslateY() < 0) {
-                        if ((distanceX > 10 || distanceY > 10) && translateX >= 0 && translateY >= 0) {
-                            matrix.postTranslate(translateX, translateY);
-                            invalidate();
-                        }
-                    }
-                    if (getTranslateX() < 0 && getTranslateY() > 0) {
-                        if ((distanceX > 10 || distanceY > 10) && translateX >= 0 && translateY <= 0) {
-                            matrix.postTranslate(translateX, translateY);
-                            invalidate();
-                        }
-                    }
-                    if (getTranslateX() > 0 && getTranslateY() < 0) {
-                        if ((distanceX > 10 || distanceY > 10) && translateX <= 0 && translateY >= 0) {
-                            matrix.postTranslate(translateX, translateY);
-                            invalidate();
-                        }
-                    }
-                    if (getTranslateX() > 0 && getTranslateY() > 0) {
-                        if ((distanceX > 10 || distanceY > 10) && translateX <= 0 && translateY <= 0) {
-                            matrix.postTranslate(translateX, translateY);
-                            invalidate();
-                        }
-                    }
+                break;
+            case MotionEvent.ACTION_UP:
+                autoScale();
+                int downDX = Math.abs(x - downX);
+                int downDY = Math.abs(y - downY);
+                if ((downDX > 10 || downDY > 10)) {
+                    autoScroll();
                 }
+
                 break;
         }
         endX = x;
@@ -261,30 +234,6 @@ public class MeetingMapView extends View {
 
         return true;
     }
-//        path.lineTo(centerX - tableWidth / 2, tableHeight + startY + getTranslateY());
-
-//    private void drawTable(Canvas canvas) {
-//        //绘制桌子的paint初始化
-//        paint.setStyle(Paint.Style.FILL);
-//        paint.setColor(Color.GREEN);
-//        paint.setAntiAlias(true);
-//
-//        float centerX = getWidth() / 2 + getTranslateX();
-//        float tableWidth = totalSeatWidth * 0.5f;
-//        if (tableWidth < this.tableWidth) {
-//            tableWidth = this.tableWidth;
-//        }
-//
-//        //开始绘制
-//        Path path = new Path();
-//        path.moveTo(centerX, startY + getTranslateY());
-//        path.lineTo(centerX - tableWidth / 2, startY + getTranslateY());
-//        path.lineTo(centerX + tableWidth / 2, tableHeight + startY + getTranslateY());
-//        path.lineTo(centerX + tableWidth / 2, startY + getTranslateY());
-//
-//        canvas.drawPath(path, paint);
-//
-//    }
 
     //绘制座位图
 
@@ -410,11 +359,6 @@ public class MeetingMapView extends View {
      */
 
 
-//    private int isHave(Integer seat) {
-//        //使用二分查找法查找并返回所在数组位置，判定是否已经被选中
-//        return Collections.binarySearch(selects, seat);
-//    }
-
     //为每一个位置分配一个唯一的id用作数组下坐标
     private int getID(int row, int column) {
         return row * this.column + column;
@@ -457,7 +401,7 @@ public class MeetingMapView extends View {
             people.setColumn(column);
             people.setId(id);
             people.setRow(row);
-        }else {
+        } else {
             people.setSetSeat(true);
             people.setColumn(column);
             people.setRow(row);
@@ -506,7 +450,7 @@ public class MeetingMapView extends View {
                     }
                 }
             }
-            if (text!="") {
+            if (text != "") {
                 Toast.makeText(getContext(), text, Toast.LENGTH_SHORT).show();
             }
         }
@@ -532,18 +476,8 @@ public class MeetingMapView extends View {
 
                     if (seatChecker != null && seatChecker.isValidSeat(i, j)) {
                         if (x >= left && x <= right && y >= top && y <= bottom) {
-
                             if (seat.get(getID(i, j)) == 1) {
-                                for (int m = 0; m < people.size(); m++) {
-                                    if (getID(i, j) == people.get(m).getId()) {
-                                        people.get(m).setSetSeat(false);
-                                    }
-                                }
-                                remove(i, j);
-                                if (seatChecker != null) {
-                                    seatChecker.unCheck(i, j);
-                                }
-                                invalidate();
+                                showSureRemove(i, j);
                             } else {
                                 showPeopleDialog(i, j);
                             }
@@ -551,7 +485,7 @@ public class MeetingMapView extends View {
                             if (currentScaleY < 1.7) {
                                 currentScaleX = x;
                                 currentScaleY = y;
-                                zoomAnimate(currentScale, 1.9f);
+                                zoomAnimate(currentScale, 1f);
                                 invalidate();
                             }
                             break;
@@ -562,6 +496,40 @@ public class MeetingMapView extends View {
             return super.onSingleTapConfirmed(e);
         }
     });
+
+    /**
+     * 确认移除弹出框
+     */
+    private void showSureRemove(final int rowNum, final int column) {
+        int index = 0;
+        for (int m = 0; m < people.size(); m++) {
+            if (getID(rowNum, column) == people.get(m).getId()) {
+                index = m;
+            }
+        }
+        final int finalIndex = index;
+        final AlertDialog dialog = new AlertDialog.Builder(this.getContext(), AlertDialog.THEME_HOLO_LIGHT)
+                .setTitle("确认要将" + people.get(index).getUserName() + "移除该座位？")
+                .setPositiveButton("确认", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        people.get(finalIndex).setSetSeat(false);
+                        remove(rowNum, column);
+                        if (seatChecker != null) {
+                            seatChecker.unCheck(rowNum, column);
+                        }
+                        dialogInterface.dismiss();
+                        invalidate();
+                    }
+                })
+                .setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        dialogInterface.dismiss();
+                    }
+                }).create();
+        dialog.show();
+    }
 
     /**
      * 人员列表弹出框
@@ -600,34 +568,13 @@ public class MeetingMapView extends View {
             }
 
         });
-//        WindowManager.LayoutParams params = dialog.getWindow().getAttributes();
-//        WindowManager m = (WindowManager) getContext()
-//                .getSystemService(Context.WINDOW_SERVICE);
-//        Display d = m.getDefaultDisplay();
-//        params.height = (int) (d.getHeight() * 0.7);
-//        params.width = d.getWidth();
-//        dialog.getWindow().setAttributes(params);
-//        new AlertDialog.Builder(getContext())
-//                .setTitle("请选择人员")
-//                .setSingleChoiceItems(people.toArray(new String[people.size()]), 0, new DialogInterface.OnClickListener() {
-//                    @Override
-//                    public void onClick(DialogInterface dialogInterface, int i) {
-//                        userId = i;
-//                    }
-//                })
-//                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
-//                    @Override
-//                    public void onClick(DialogInterface dialogInterface, int i) {
-//                        addChooseSeat(rowNum, column, userId);
-//                        if (seatChecker != null) {
-//                            seatChecker.checked(rowNum, column);
-//                        }
-//                        invalidate();
-//                        dialogInterface.dismiss();
-//                    }
-//                })
-//                .setNegativeButton("取消", null)
-//                .show();
+        WindowManager.LayoutParams params = dialog.getWindow().getAttributes();
+        WindowManager m = (WindowManager) getContext()
+                .getSystemService(Context.WINDOW_SERVICE);
+        Display d = m.getDefaultDisplay();
+        params.height = (int) (d.getHeight() * 0.7);
+        params.width = d.getWidth();
+        dialog.getWindow().setAttributes(params);
     }
 
     public void setData(String[] people) {
@@ -720,4 +667,112 @@ public class MeetingMapView extends View {
             firstScale = true;
         }
     });
+
+    class MoveAnimation implements ValueAnimator.AnimatorUpdateListener {
+
+        @Override
+        public void onAnimationUpdate(ValueAnimator animation) {
+            Point p = (Point) animation.getAnimatedValue();
+
+            move(p);
+        }
+    }
+
+    class MoveEvaluator implements TypeEvaluator {
+
+        @Override
+        public Object evaluate(float fraction, Object startValue, Object endValue) {
+            Point startPoint = (Point) startValue;
+            Point endPoint = (Point) endValue;
+            int x = (int) (startPoint.x + fraction * (endPoint.x - startPoint.x));
+            int y = (int) (startPoint.y + fraction * (endPoint.y - startPoint.y));
+            return new Point(x, y);
+        }
+    }
+
+
+    /**
+     * 自动回弹
+     */
+    private void autoScroll() {
+        float currentSeatBitmapWidth = totalSeatWidth * getMatrixScaleX();
+        float currentSeatBitmapHeight = totalSeatHeight * getMatrixScaleY();
+        float moveYLength = 0;
+        float moveXLength = 0;
+        float spcingWidth = Math.abs((getWidth() - totalSeatWidth * getMatrixScaleX()) / 2);
+
+        //处理左右滑动的情况
+        if (currentSeatBitmapWidth < getWidth()) {
+            if (getTranslateX() < 0 || getMatrixScaleX() < spcingWidth) {
+                moveXLength = -getTranslateX();
+
+            }
+        } else {
+
+            if (getTranslateX() < 0 && getTranslateX() + currentSeatBitmapWidth > getWidth()) {
+
+            } else {
+                //往左侧滑动
+                if (getTranslateX() + currentSeatBitmapWidth < getWidth()) {
+                    moveXLength = getWidth() - (getTranslateX() + currentSeatBitmapWidth - spcingWidth);
+                } else {
+                    //右侧滑动
+                    moveXLength = -getTranslateX() + spcingWidth;
+                }
+            }
+
+        }
+
+        //处理上下滑动
+        if (currentSeatBitmapHeight < getHeight()) {
+            moveYLength = -(getTranslateY());
+
+        } else {
+
+            if (getTranslateY() < 0 && getTranslateY() + currentSeatBitmapHeight > getHeight()) {
+
+            } else {
+                //往上滑动
+                if (getTranslateY() + currentSeatBitmapHeight < getHeight()) {
+                    moveYLength = getHeight() - (getTranslateY() + currentSeatBitmapHeight + spcingHeight);
+                } else {
+                    moveYLength = -(getTranslateY());
+                }
+            }
+        }
+
+        Point start = new Point();
+        start.x = (int) getTranslateX();
+        start.y = (int) getTranslateY();
+
+        Point end = new Point();
+        end.x = (int) (start.x + moveXLength);
+        end.y = (int) (start.y + moveYLength);
+        moveAnimate(start, end);
+    }
+
+    private void moveAnimate(Point start, Point end) {
+        ValueAnimator valueAnimator = ValueAnimator.ofObject(new MoveEvaluator(), start, end);
+        valueAnimator.setInterpolator(new DecelerateInterpolator());
+        MoveAnimation moveAnimation = new MoveAnimation();
+        valueAnimator.addUpdateListener(moveAnimation);
+        valueAnimator.setDuration(400);
+        valueAnimator.start();
+    }
+
+    private void autoScale() {
+
+        if (getMatrixScaleX() > 2.2) {
+            zoomAnimate(getMatrixScaleX(), 2.0f);
+        } else if (getMatrixScaleX() < 0.98) {
+            zoomAnimate(getMatrixScaleX(), 1.0f);
+        }
+    }
+
+    private void move(Point p) {
+        float x = p.x - getTranslateX();
+        float y = p.y - getTranslateY();
+        matrix.postTranslate(x, y);
+        invalidate();
+    }
 }
